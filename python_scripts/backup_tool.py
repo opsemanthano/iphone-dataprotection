@@ -9,6 +9,8 @@ import sys
 import plistlib
 import struct
 
+from getpass import getpass
+
 showinfo = ["Device Name", "Display Name", "Last Backup Date", "IMEI",
             "Serial Number", "Product Type", "Product Version", "iTunes Version"]
 
@@ -19,8 +21,18 @@ def extract_backup(backup_path, output_path, password=""):
     manifest = readPlist(backup_path + "/Manifest.plist")
     
     info = readPlist( backup_path + "/Info.plist")
+    data = []
+    version = ''
     for i in showinfo:
-        print i + " : " + unicode(info.get(i, "missing"))
+        l = unicode(info.get(i, "missing"))
+        data.append(l)
+        print i + " : " + l
+
+    data[2] = data[2].replace(':','_')
+    version = '-'.join(str(d) for d in (data[5],data[6],data[2]))
+
+    print "Version: %s" % version
+    output_path = output_path + '/' + version
     
     print "Extract backup to %s ? (y/n)" % output_path
     if raw_input() == "n":
@@ -29,8 +41,11 @@ def extract_backup(backup_path, output_path, password=""):
     print "Backup is %sencrypted" % (int(not manifest["IsEncrypted"]) * "not ")
     
     if manifest["IsEncrypted"] and password == "":
-        print "Enter backup password : "
-        password = raw_input()
+        try:
+           password = getpass("Enter backup password : ")
+        except Exception:
+           print "Enter backup password : "
+           password = raw_input()
     
     if not manifest.has_key("BackupKeyBag"):
         print "No BackupKeyBag in manifest, assuming iOS 3.x backup"

@@ -80,10 +80,20 @@ class MBFile(object):
 
 
 class ManifestDB(object):
-    def __init__ (self, path, key=None):
+    def __init__ (self, path, key=None, partial=None):
         self.files = {}
         self.backup_path = path
         self.keybag = None
+
+        self.mdbpath = None
+        self.query = """
+             SELECT fileID, domain, relativePath, flags, file
+                FROM FILES
+                %s
+                %s
+                     """
+        self.ordering = "ORDER BY domain, relativePath"
+        self.domains = []
 
         mdb_path = os.path.join(path,'Manifest.db')
 
@@ -93,13 +103,42 @@ class ManifestDB(object):
             mdb_path = os.path.join(path,'Manifest.db-decrypted')
             self.decrypt_manifest_db(mdb_path_encrypted, mdb_path, key)
 
-        conn = sqlite3.connect(mdb_path)
+        self.mdbpath = mdb_path
+
+        if partial is None:
+           self.search_and_fill(debug=True)
+ 
+    def list_domains(self):
+        conn = sqlite3.connect(self,mdbpath)
+
+        try:
+            conn.row_factory = sqlite3.Row
+            cusrsor = conn.cursor()
+
+            for record in cursor.execute("SELECT DISTINCT domain FROM files"):
+               self.domains.append(record[0])
+
+        finally:
+            conn.close()
+
+    # %s is '' for old style, else WHERE <param> = ?
+    # if WHERE clause then curosor.execute has a second argument
+    """
+            query="SELECT * FROM Files WHERE relativePath LIKE '{relativePath}%' {additionalFilters} ORDER BY domain, relativePath".format(
+            relativePath=relativePath,
+            additionalFilters=' AND '.join(additionalFilters)
+        )
+    """
+
+    def search_and_fill(self,what=' ',order=False,debug=False):
+        conn = sqlite3.connect(self.mdbpath)
 
         try:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
-            for record in cursor.execute("SELECT fileID, domain, relativePath, flags, file FROM Files"):
+            db_query = self.query % (what, self.ordering if order == True else ' ')
+            for record in cursor.execute(db_query):
                 filename = record[0]
                 domain = record[1]
                 relative_path = record[2]
@@ -108,10 +147,15 @@ class ManifestDB(object):
                 if flags == 16:
                     warn("Flags == 16 for {0} {1} ({2})".format(domain, relative_path, file_blob))
                 else:
-                    self.files[filename] = MBFile(domain, relative_path, flags, file_blob)
+                    if not debug:
+                      self.files[filename] = MBFile(domain, relative_path, flags, file_blob)
+                    else:
+                      print "%s %s %s %d" % (filename, domain, relative_path, flags)
 
         finally:
             conn.close()
+
+
 
     @staticmethod
     def decrypt_manifest_db(path_in, path_out, key):
