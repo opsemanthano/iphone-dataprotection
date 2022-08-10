@@ -121,15 +121,6 @@ class ManifestDB(object):
         finally:
             conn.close()
 
-    # %s is '' for old style, else WHERE <param> = ?
-    # if WHERE clause then curosor.execute has a second argument
-    """
-            query="SELECT * FROM Files WHERE relativePath LIKE '{relativePath}%' {additionalFilters} ORDER BY domain, relativePath".format(
-            relativePath=relativePath,
-            additionalFilters=' AND '.join(additionalFilters)
-        )
-    """
-
     def search_and_fill(self,what=' ',order=False,debug=False):
         conn = sqlite3.connect(self.mdbpath)
 
